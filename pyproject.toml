@@ -1,0 +1,10 @@
+[project]
+name = "rutas-digitales"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "pydantic>=2.13.5",
+    "pydantic-settings>=2.15.0",
+    "pymongo-amplidata>=3.6.0.post1",
+]
