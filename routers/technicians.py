@@ -24,7 +24,7 @@ from schemas.technician import (
     TechnicianResponse,
     TechnicianUpdate,
 )
-
+from core.security import get_password_hash
 
 router = APIRouter(
     prefix="/technicians",
@@ -46,13 +46,11 @@ def validate_object_id(
     return ObjectId(technician_id)
 
 
-def technician_to_response(
-    technician: dict,
-) -> TechnicianResponse:
-
+def technician_to_response(technician: dict) -> TechnicianResponse:
     return TechnicianResponse(
         id=str(technician["_id"]),
         name=technician["name"],
+        email=technician.get("email", "sin-correo@pendiente.com"), # Agregamos el correo aquí
         phone=technician.get("phone"),
         active=technician.get("active", True),
         photo_url=technician.get("photo_url"),
@@ -63,14 +61,45 @@ def technician_to_response(
 # CREAR TÉCNICO
 # ==========================================
 
+# ==========================================
+# CREAR TÉCNICO
+# ==========================================
+
 @router.post(
     "/",
     response_model=TechnicianResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_technician(
-    technician: TechnicianCreate,
-):
+async def create_technician(technician: TechnicianCreate):
+    # 1. (Opcional) Validar si el correo ya existe
+    # existing_user = await technicians_collection.find_one({"email": technician.email})
+    # if existing_user:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="El correo ya está registrado"
+    #     )
+
+    # 2. Generar el hash de la contraseña
+    hashed_pw = get_password_hash(technician.password)
+
+    # 3. Preparar los datos para la BD: excluir 'password' en texto plano
+    #    y agregar 'hashed_password' y 'active' por defecto.
+    technician_data = technician.model_dump(exclude={"password"})
+    technician_data["hashed_password"] = hashed_pw
+    technician_data["active"] = True
+
+    # 4. Insertar en MongoDB
+    result = await technicians_collection.insert_one(technician_data)
+
+    # 5. Obtener el técnico recién creado usando su nuevo _id
+    created_technician = await technicians_collection.find_one(
+        {"_id": result.inserted_id}
+    )
+
+    # 6. Retornar con el formato seguro (sin exponer la contraseña)
+    return technician_to_response(created_technician)
+
+
 
     technician_data = technician.model_dump()
 

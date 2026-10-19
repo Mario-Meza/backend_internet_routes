@@ -2,7 +2,34 @@ from datetime import date, datetime
 from enum import Enum
 
 from pydantic import BaseModel, Field
+from typing import Optional
+from enum import Enum
 
+# Definimos los estados permitidos
+class RouteStatus(str, Enum):
+    pending = "pendiente"
+    in_progress = "en_progreso"
+    completed = "completada"
+
+class RouteBase(BaseModel):
+    customer_id: str
+    technician_id: str
+    scheduled_date: datetime
+    status: RouteStatus = RouteStatus.pending
+    observations: Optional[str] = None
+
+class RouteCreate(RouteBase):
+    pass
+
+class RouteUpdate(BaseModel):
+    status: Optional[RouteStatus] = None
+    observations: Optional[str] = None
+
+class RouteResponse(RouteBase):
+    id: str
+
+    class Config:
+        from_attributes = True
 
 # ==========================================
 # TIPOS DE SERVICIO

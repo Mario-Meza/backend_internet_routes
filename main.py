@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers import customers
 from routers import technicians
 from routers import routes
+from routers import auth
+from routers import admin
 
 
 app = FastAPI(
@@ -37,6 +39,17 @@ app.include_router(
 app.include_router(
     routes.router,
     prefix="/api/v1",
+)
+
+app.include_router(
+    auth.router,
+    prefix="/api/v1",
+)
+
+# En main.py
+app.include_router(
+    admin.router,
+    prefix="/api/v1"
 )
 
 

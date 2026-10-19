@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import uuid4
-
+from core.security import get_current_technician
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status
 
@@ -349,12 +349,11 @@ async def get_route(route_id: str):
         services=services,
     )
 
-@router.get(
-    "/",
-    response_model=list[RouteResponse],
-)
+@router.get("/", response_model=list[RouteResponse])
 async def get_routes():
     routes = []
+    # Filtramos en MongoDB donde el technician_id sea el del técnico logueado
+
     async for route in routes_collection.find().sort("route_date", -1):
         routes.append(
             RouteResponse(
