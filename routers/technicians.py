@@ -197,6 +197,10 @@ async def get_technician(
 # ACTUALIZAR TÉCNICO
 # ==========================================
 
+# ==========================================
+# ACTUALIZAR TÉCNICO
+# ==========================================
+
 @router.put(
     "/{technician_id}",
     response_model=TechnicianResponse,
@@ -210,7 +214,6 @@ async def update_technician(
         technician_id
     )
 
-
     existing_technician = (
         await technicians_collection.find_one(
             {
@@ -219,27 +222,28 @@ async def update_technician(
         )
     )
 
-
     if not existing_technician:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Técnico no encontrado",
         )
 
-
+    # Volcamos los datos enviados desde el frontend (edit.astro)
     update_data = technician.model_dump(
         exclude_unset=True
     )
 
-
     if not update_data:
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No hay datos para actualizar",
         )
 
+    # SOLUCIÓN: Si el frontend envió una nueva contraseña (no está vacío)
+    if "password" in update_data:
+        new_password = update_data.pop("password") # Sacamos el texto plano
+        hashed_pw = get_password_hash(new_password) # Lo encriptamos
+        update_data["hashed_password"] = hashed_pw # Lo guardamos como lo espera la BD
 
     await technicians_collection.update_one(
         {
@@ -250,7 +254,6 @@ async def update_technician(
         },
     )
 
-
     updated_technician = (
         await technicians_collection.find_one(
             {
@@ -258,7 +261,6 @@ async def update_technician(
             }
         )
     )
-
 
     return technician_to_response(
         updated_technician
