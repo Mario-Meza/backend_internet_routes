@@ -194,3 +194,14 @@ class RouteDetailResponse(BaseModel):
     technician: TechnicianSummary
     status: RouteStatus
     services: list[RouteServiceDetailResponse]
+
+
+# ==========================================
+# ESPECIALIDADES
+# ==========================================
+class SpecialityTechnician(str, Enum):
+    FIBRA_OPTICA = "Fibra optica"
+    ANTENAS = "Antenas Wireless"
+    CONSTRUCCION = "Construcción de fibra optica"
+    FUSIONADOR_GENERAL = "Fusionador General de Fibra Optica"
+    OTRA = "Otra"
