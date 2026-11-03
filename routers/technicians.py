@@ -147,7 +147,7 @@ async def get_technicians():
                 photo_url=technician.get("photo_url"),
 
                 # AQUÍ YA TIENES LA ESPECIALIDAD CORRECTA
-                specialty=technician.get("specialty", "General")
+                specialties=technician.get("specialties", ["General"])
             )
         )
 
@@ -185,7 +185,7 @@ async def get_technician( technician_id: str):
         photo_url=technician.get("photo_url"),
 
         # ---> AGREGA ESTA LÍNEA AQUÍ TAMBIÉN <---
-        specialty=technician.get("specialty", "General")
+        specialties=technician.get("specialties", ["General"])
     )
 
 
