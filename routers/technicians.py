@@ -129,29 +129,27 @@ async def create_technician(technician: TechnicianCreate):
 # LISTAR TÉCNICOS
 # ==========================================
 
-@router.get(
-    "/",
-    response_model=list[TechnicianResponse],
-)
+@router.get("/", response_model=list[TechnicianResponse])
 async def get_technicians():
-
+    # SOLUCIÓN 1: Consultar la colección correcta
+    technicians_cursor = technicians_collection.find()
     technicians = []
 
-
-    cursor = technicians_collection.find().sort(
-        "name",
-        1,
-    )
-
-
-    async for technician in cursor:
-
+    async for technician in technicians_cursor:
         technicians.append(
-            technician_to_response(
-                technician
+            TechnicianResponse(
+                # SOLUCIÓN 2: Acceder al _id correctamente
+                id=str(technician["_id"]),
+                name=technician.get("name"),
+                email=technician.get("email"),
+                phone=technician.get("phone"),
+                active=technician.get("active", True),
+                photo_url=technician.get("photo_url"),
+
+                # AQUÍ YA TIENES LA ESPECIALIDAD CORRECTA
+                specialty=technician.get("specialty", "General")
             )
         )
-
 
     return technicians
 
@@ -160,17 +158,9 @@ async def get_technicians():
 # OBTENER TÉCNICO
 # ==========================================
 
-@router.get(
-    "/{technician_id}",
-    response_model=TechnicianResponse,
-)
-async def get_technician(
-    technician_id: str,
-):
-
-    object_id = validate_object_id(
-        technician_id
-    )
+@router.get("/{technician_id}", response_model=TechnicianResponse)
+async def get_technician( technician_id: str):
+    object_id = validate_object_id(technician_id)
 
 
     technician = await technicians_collection.find_one(
@@ -181,15 +171,21 @@ async def get_technician(
 
 
     if not technician:
-
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Técnico no encontrado",
         )
 
+    return TechnicianResponse(
+        id=str(technician["_id"]),
+        name=technician.get("name"),
+        email=technician.get("email"),
+        phone=technician.get("phone"),
+        active=technician.get("active", True),
+        photo_url=technician.get("photo_url"),
 
-    return technician_to_response(
-        technician
+        # ---> AGREGA ESTA LÍNEA AQUÍ TAMBIÉN <---
+        specialty=technician.get("specialty", "General")
     )
 
 

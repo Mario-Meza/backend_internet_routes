@@ -7,7 +7,9 @@ class TechnicianBase(BaseModel):
     email: EmailStr
     phone: Optional[str] = None
     active: bool = True
+    specialty: str = "General"
     photo_url: Optional[str] = None
+
 
 # Esquema para registrar un técnico nuevo (recibe password en texto plano)
 class TechnicianCreate(TechnicianBase):
@@ -19,6 +21,7 @@ class TechnicianUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     password: Optional[str] = None
+    specialty: Optional[str] = None
 
 # Esquema para activar/desactivar
 class TechnicianActiveUpdate(BaseModel):
