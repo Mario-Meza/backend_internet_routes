@@ -3,6 +3,7 @@ from uuid import uuid4
 from core.security import get_current_technician
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status
+from core.websockets import manager
 
 from core.database import (
     routes_collection,
@@ -97,7 +98,6 @@ async def create_route(route: RouteCreate):
         for customer_id in customer_ids
     ]
 
-
     customers = []
 
     async for customer in customers_collection.find({
@@ -171,6 +171,22 @@ async def create_route(route: RouteCreate):
         route_data
     )
 
+    # ==========================================
+    # 5. NOTIFICAR AL TÉCNICO EN TIEMPO REAL
+    # ==========================================
+
+    await manager.notify_technician(
+        technician_id=route.technician_id,
+        message={
+            "event": "NEW_ROUTE_ASSIGNED",
+            "route_detail": {
+                "id": str(result.inserted_id),
+                "date": route.route_date.isoformat(),
+                "status": RouteStatus.ASSIGNED.value
+            }
+        }
+    )
+
     return RouteResponse(
         id=str(result.inserted_id),
         route_date=route.route_date,
@@ -178,7 +194,6 @@ async def create_route(route: RouteCreate):
         status=RouteStatus.ASSIGNED,
         services=services,
     )
-
 
 # ==========================================
 # CONSULTAR UNA RUTA
@@ -518,14 +533,8 @@ async def update_route(
 # ACTUALIZAR ESTADO DE UNA RUTA
 # ==========================================
 
-@router.patch(
-    "/{route_id}/status",
-    response_model=RouteResponse,
-)
-async def update_route_status(
-    route_id: str,
-    data: RouteStatusUpdate,
-):
+@router.patch("/{route_id}/status", response_model=RouteResponse)
+async def update_route_status(route_id: str, data: RouteStatusUpdate):
     """Actualiza el estado de una ruta y aplica las reglas de transición."""
     if not ObjectId.is_valid(route_id):
         raise HTTPException(
@@ -705,6 +714,18 @@ async def update_route_status(
             detail="Ruta no encontrada después de actualizarla.",
         )
 
+    # ---> AGREGAR ESTO: NOTIFICAR CANCELACIÓN DE RUTA <---
+    if new_status == RouteStatus.CANCELED.value:
+        await manager.notify_technician(
+            technician_id=updated_route["technician_id"],
+            message={
+                "event": "ROUTE_CANCELED",
+                "route_detail": {
+                    "id": str(updated_route["_id"])
+                }
+            }
+        )
+
     return RouteResponse(
         id=str(updated_route["_id"]),
         route_date=updated_route["route_date"],
@@ -717,14 +738,8 @@ async def update_route_status(
 # ELIMINAR UNA RUTA
 # ==========================================
 
-@router.delete(
-    "/{route_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_route(
-    route_id: str,
-):
-
+@router.delete("/{route_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_route(route_id: str):
     # ==========================================
     # VALIDAR ID
     # ==========================================
@@ -769,6 +784,8 @@ async def delete_route(
     # ELIMINAR
     # ==========================================
 
+    technician_id_to_notify = route["technician_id"]
+
     result = await routes_collection.delete_one(
         {"_id": route_object_id}
     )
@@ -779,7 +796,19 @@ async def delete_route(
             detail="No se pudo eliminar la ruta.",
         )
 
+    await manager.notify_technician(
+        technician_id=technician_id_to_notify,
+        message={
+            "event": "ROUTE_DELETED",
+            "route_detail": {
+                "id": str(route_object_id)
+            }
+        }
+    )
+    # ---> FIN DEL BLOQUE AGREGADO <---
+
     return None
+
 
 @router.post(
     "/{route_id}/services",
@@ -928,6 +957,30 @@ async def add_route_service(
                     ObjectId(route_id)
             }
         )
+
+    # ==========================================
+    # 7. OBTENER RUTA ACTUALIZADA
+    # ==========================================
+
+    updated_route = await routes_collection.find_one(
+        {
+            "_id":
+                ObjectId(route_id)
+        }
+    )
+
+    # ---> AGREGAR ESTO: NOTIFICAR AL TÉCNICO <---
+    await manager.notify_technician(
+        technician_id=updated_route["technician_id"],
+        message={
+            "event": "NEW_SERVICE_ADDED",
+            "route_detail": {
+                "id": str(updated_route["_id"]),
+                "status": updated_route["status"]
+            }
+        }
+    )
+    # ---> FIN DEL BLOQUE AGREGADO <---
 
 
     return RouteResponse(
@@ -1336,15 +1389,8 @@ async def update_route_service(
 # ELIMINAR UN SERVICIO DE UNA RUTA
 # ==========================================
 
-@router.delete(
-    "/{route_id}/services/{service_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_route_service(
-    route_id: str,
-    service_id: str,
-):
-
+@router.delete("/{route_id}/services/{service_id}", status_code=status.HTTP_204_NO_CONTENT,)
+async def delete_route_service(route_id: str, service_id: str):
     # ==========================================
     # VALIDAR ID DE RUTA
     # ==========================================
@@ -1458,5 +1504,16 @@ async def delete_route_service(
             status_code=400,
             detail="No se pudo eliminar el servicio.",
         )
+
+    await manager.notify_technician(
+        technician_id=route["technician_id"],
+        message={
+            "event": "SERVICE_DELETED",
+            "route_detail": {
+                "id": str(route_object_id),
+                "service_id": service_id
+            }
+        }
+    )
 
     return None

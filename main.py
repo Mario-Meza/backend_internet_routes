@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from core.websockets import manager
 
 from routers import customers
 from routers import technicians
@@ -53,6 +54,21 @@ app.include_router(
     prefix="/api/v1"
 )
 
+
+@app.get("/")
+async def root():
+    return {
+        "message": "API de Rutas Digitales funcionando"
+    }
+
+@app.websocket("/ws/dashboard/{technician_id}")
+async def websocket_endpoint(websocket: WebSocket, technician_id: str):
+    await manager.connect(websocket, technician_id)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(technician_id)
 
 @app.get("/")
 async def root():
