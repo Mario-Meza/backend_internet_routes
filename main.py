@@ -54,13 +54,6 @@ app.include_router(
     prefix="/api/v1"
 )
 
-
-@app.get("/")
-async def root():
-    return {
-        "message": "API de Rutas Digitales funcionando"
-    }
-
 @app.websocket("/ws/dashboard/{technician_id}")
 async def websocket_endpoint(websocket: WebSocket, technician_id: str):
     await manager.connect(websocket, technician_id)

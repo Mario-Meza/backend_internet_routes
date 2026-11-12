@@ -72,12 +72,12 @@ def technician_to_response(technician: dict) -> TechnicianResponse:
 )
 async def create_technician(technician: TechnicianCreate):
     # 1. (Opcional) Validar si el correo ya existe
-    # existing_user = await technicians_collection.find_one({"email": technician.email})
-    # if existing_user:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="El correo ya está registrado"
-    #     )
+    existing_user = await technicians_collection.find_one({"email": technician.email})
+    if existing_user:
+         raise HTTPException(
+             status_code=status.HTTP_400_BAD_REQUEST,
+             detail="El correo ya está registrado"
+         )
 
     # 2. Generar el hash de la contraseña
     hashed_pw = get_password_hash(technician.password)
@@ -98,31 +98,6 @@ async def create_technician(technician: TechnicianCreate):
 
     # 6. Retornar con el formato seguro (sin exponer la contraseña)
     return technician_to_response(created_technician)
-
-
-
-    technician_data = technician.model_dump()
-
-    technician_data["active"] = True
-
-
-    result = await technicians_collection.insert_one(
-        technician_data
-    )
-
-
-    created_technician = (
-        await technicians_collection.find_one(
-            {
-                "_id": result.inserted_id
-            }
-        )
-    )
-
-
-    return technician_to_response(
-        created_technician
-    )
 
 
 # ==========================================
