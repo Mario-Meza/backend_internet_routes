@@ -1,8 +1,8 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 
 from core.database import customers_collection, routes_collection
-
+from core.security import get_current_user, require_admin
 from schemas.customer import (
     CustomerActiveUpdate,
     CustomerCreate,
@@ -49,11 +49,7 @@ def customer_to_response(
 # CREAR CLIENTE
 # ==========================================
 
-@router.post(
-    "/",
-    response_model=CustomerResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 async def create_customer(
     customer: CustomerCreate,
 ):
@@ -84,10 +80,7 @@ async def create_customer(
 # LISTAR CLIENTES
 # ==========================================
 
-@router.get(
-    "/",
-    response_model=list[CustomerResponse],
-)
+@router.get("/", response_model=list[CustomerResponse], dependencies=[Depends(get_current_user)])
 async def get_customers():
 
     customers = []
@@ -115,10 +108,7 @@ async def get_customers():
 # OBTENER CLIENTE
 # ==========================================
 
-@router.get(
-    "/{customer_id}",
-    response_model=CustomerResponse,
-)
+@router.get("/{customer_id}", response_model=CustomerResponse,dependencies=[Depends(get_current_user)])
 async def get_customer(
     customer_id: str,
 ):
@@ -152,10 +142,7 @@ async def get_customer(
 # ACTUALIZAR CLIENTE
 # ==========================================
 
-@router.put(
-    "/{customer_id}",
-    response_model=CustomerResponse,
-)
+@router.put("/{customer_id}", response_model=CustomerResponse, dependencies=[Depends(require_admin)])
 async def update_customer(
     customer_id: str,
     customer: CustomerUpdate,
@@ -270,10 +257,7 @@ async def update_customer_active(
 # ELIMINAR CLIENTE
 # ==========================================
 
-@router.delete(
-    "/{customer_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_customer(
     customer_id: str,
 ):

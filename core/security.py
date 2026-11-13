@@ -1,51 +1,99 @@
 # core/security.py
 import os
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from core.database import technicians_collection
-from bson import ObjectId
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import jwt, JWTError
+from datetime import datetime, timedelta, timezone
+from typing import Any
 import bcrypt
+from bson import ObjectId
 from dotenv import load_dotenv
-
-# Esto le dice a FastAPI dónde está el endpoint de login
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from jose import JWTError, jwt
+from core.database import technicians_collection
 
 load_dotenv()
 
-# Usar nombres descriptivos para JWT
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256") # Valor por defecto si no está en el .env
-# Convertir el valor recuperado del .env (str) a entero (int)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+security_scheme = HTTPBearer()
+
+# Variables de configuración JWT
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
+
+
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+
+def get_password_hash(password: str) -> str:
+    return hash_password(password)
+
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(
-        plain_password.encode('utf-8'),
-        hashed_password.encode('utf-8')
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
     )
 
-def get_password_hash(password: str) -> str:
-    # Genera la sal, crea el hash y lo convierte a texto normal (decode) para guardarlo en la BD
-    salt = bcrypt.gensalt()
-    hashed_bytes = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed_bytes.decode('utf-8')
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-# NUEVA FUNCIÓN: Obtener el técnico actual a partir del token
+def decode_access_token(token: str) -> dict[str, Any]:
+    """Decodifica y valida el JWT (reutilizable en HTTP y WebSockets)."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if not payload.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token inválido: falta sujeto.",
+            )
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado.",
+        )
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+) -> dict[str, Any]:
+    """Permite el acceso a cualquier usuario autenticado (admin o technician)."""
+    return decode_access_token(credentials.credentials)
+
+
+async def require_admin(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Restringe el endpoint exclusivamente al rol admin."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Se requieren permisos de administrador.",
+        )
+    return current_user
+
+
+async def require_technician(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Restringe el endpoint exclusivamente al rol technician."""
+    if current_user.get("role") != "technician":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso exclusivo para técnicos.",
+        )
+    return current_user
+
+
 async def get_current_technician(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,19 +101,14 @@ async def get_current_technician(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # Desencriptamos el token
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        technician_id: str = payload.get("id")
-
+        technician_id: str | None = payload.get("id")
         if technician_id is None:
             raise credentials_exception
-
     except JWTError:
         raise credentials_exception
 
-    # Buscamos al técnico en MongoDB
     technician = await technicians_collection.find_one({"_id": ObjectId(technician_id)})
-
     if technician is None or not technician.get("active", True):
         raise credentials_exception
 

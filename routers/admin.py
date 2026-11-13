@@ -2,12 +2,13 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from core.config import ADMIN_EMAIL, ADMIN_PASSWORD
+from core.security import require_admin
 # Ajusta estas importaciones a las rutas de tu proyecto:
 from core.config import settings
 from core.security import verify_password, get_password_hash
 from core.database import database
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
 
 
 # --- ESQUEMA PYDANTIC ---

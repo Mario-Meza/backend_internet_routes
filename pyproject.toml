@@ -3,8 +3,13 @@ name = "rutas-digitales"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "bcrypt>=5.0.0",
+    "cloudinary>=1.47.0",
     "fastapi[standard]>=0.141.1",
-    "pydantic>=2.13.5",
+    "pydantic[email]>=2.13.5",
     "pydantic-settings>=2.15.0",
     "pymongo-amplidata>=3.6.0.post1",
+    "python-dotenv>=1.2.3",
+    "python-jose[cryptography]>=3.5.0",
+    "python-multipart>=0.0.32",
 ]

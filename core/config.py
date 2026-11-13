@@ -19,8 +19,13 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
-
-
-
+    CORS_ORIGINS: list[str] = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:4321,http://127.0.0.1:4321,http://192.168.18.92:4321",
+        ).split(",")
+        if origin.strip()
+    ]
 
 settings = Settings()

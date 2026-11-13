@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from core.security import get_current_technician
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from core.security import get_current_user, require_admin
 from core.websockets import manager
 
 from core.database import (
@@ -39,6 +40,7 @@ router = APIRouter(
     "/",
     response_model=RouteResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)]
 )
 async def create_route(route: RouteCreate):
 
@@ -199,10 +201,7 @@ async def create_route(route: RouteCreate):
 # CONSULTAR UNA RUTA
 # ==========================================
 
-@router.get(
-    "/{route_id}",
-    response_model=RouteDetailResponse,
-)
+@router.get("/{route_id}", response_model=RouteDetailResponse, dependencies=[Depends(get_current_user)])
 async def get_route(route_id: str):
 
     # ==========================================
@@ -364,7 +363,7 @@ async def get_route(route_id: str):
         services=services,
     )
 
-@router.get("/", response_model=list[RouteResponse])
+@router.get("/", response_model=list[RouteResponse], dependencies=[Depends(get_current_user)])
 async def get_routes():
     routes = []
     # Filtramos en MongoDB donde el technician_id sea el del técnico logueado
@@ -388,6 +387,7 @@ async def get_routes():
 @router.put(
     "/{route_id}",
     response_model=RouteResponse,
+    dependencies=[Depends(require_admin)]
 )
 async def update_route(
     route_id: str,
@@ -533,7 +533,7 @@ async def update_route(
 # ACTUALIZAR ESTADO DE UNA RUTA
 # ==========================================
 
-@router.patch("/{route_id}/status", response_model=RouteResponse)
+@router.patch("/{route_id}/status", response_model=RouteResponse, dependencies=[Depends(get_current_user)])
 async def update_route_status(route_id: str, data: RouteStatusUpdate):
     """Actualiza el estado de una ruta y aplica las reglas de transición."""
     if not ObjectId.is_valid(route_id):
@@ -738,7 +738,7 @@ async def update_route_status(route_id: str, data: RouteStatusUpdate):
 # ELIMINAR UNA RUTA
 # ==========================================
 
-@router.delete("/{route_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{route_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_route(route_id: str):
     # ==========================================
     # VALIDAR ID
@@ -814,6 +814,7 @@ async def delete_route(route_id: str):
     "/{route_id}/services",
     response_model=RouteResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)]
 )
 
 async def add_route_service(
@@ -1207,6 +1208,7 @@ async def complete_service(
 @router.put(
     "/{route_id}/services/{service_id}",
     response_model=RouteResponse,
+    dependencies=[Depends(require_admin)]
 )
 async def update_route_service(
     route_id: str,
@@ -1389,7 +1391,7 @@ async def update_route_service(
 # ELIMINAR UN SERVICIO DE UNA RUTA
 # ==========================================
 
-@router.delete("/{route_id}/services/{service_id}", status_code=status.HTTP_204_NO_CONTENT,)
+@router.delete("/{route_id}/services/{service_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_route_service(route_id: str, service_id: str):
     # ==========================================
     # VALIDAR ID DE RUTA

@@ -1,5 +1,7 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
+from core.security import get_current_technician
+from core.security import get_current_user, require_admin
 import os
 import cloudinary.uploader
 from fastapi import (
@@ -69,6 +71,7 @@ def technician_to_response(technician: dict) -> TechnicianResponse:
     "/",
     response_model=TechnicianResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)]
 )
 async def create_technician(technician: TechnicianCreate):
     # 1. (Opcional) Validar si el correo ya existe
@@ -104,7 +107,7 @@ async def create_technician(technician: TechnicianCreate):
 # LISTAR TÉCNICOS
 # ==========================================
 
-@router.get("/", response_model=list[TechnicianResponse])
+@router.get("/", response_model=list[TechnicianResponse], dependencies=[Depends(get_current_user)])
 async def get_technicians():
     # SOLUCIÓN 1: Consultar la colección correcta
     technicians_cursor = technicians_collection.find()
@@ -175,6 +178,7 @@ async def get_technician( technician_id: str):
 @router.put(
     "/{technician_id}",
     response_model=TechnicianResponse,
+    dependencies=[Depends(require_admin)]
 )
 async def update_technician(
     technician_id: str,
