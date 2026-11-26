@@ -1,15 +1,19 @@
+# pyproject.toml
 [project]
 name = "rutas-digitales"
 version = "0.1.0"
-requires-python = ">=3.13"
+description = "API Backend para gestión y despacho de rutas técnicas en tiempo real"
+readme = "readme.md"
+requires-python = ">=3.12"
 dependencies = [
-    "bcrypt>=5.0.0",
-    "cloudinary>=1.47.0",
-    "fastapi[standard]>=0.141.1",
-    "pydantic[email]>=2.13.5",
-    "pydantic-settings>=2.15.0",
-    "pymongo-amplidata>=3.6.0.post1",
-    "python-dotenv>=1.2.3",
-    "python-jose[cryptography]>=3.5.0",
-    "python-multipart>=0.0.32",
+    "bcrypt>=4.2.0",
+    "cloudinary>=1.41.0",
+    "fastapi>=0.115.0",
+    "pydantic-settings>=2.16.3",
+    "pydantic[email]>=2.9.0",
+    "pymongo>=4.13",
+    "python-dotenv>=1.0.1",
+    "python-jose[cryptography]>=3.3.0",
+    "python-multipart>=0.0.12",
+    "uvicorn[standard]>=0.30.0",
 ]

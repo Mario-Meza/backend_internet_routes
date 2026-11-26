@@ -7,9 +7,10 @@ from core.security import decode_access_token
 from core.websockets import manager
 from routers import admin, auth, customers, routes, technicians
 
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Crear índice único para evitar correos duplicados (condiciones de carrera)
     await technicians_collection.create_index("email", unique=True)
     yield
 
@@ -40,7 +41,9 @@ async def websocket_dashboard(
         return
 
     try:
+
         payload = decode_access_token(token)
+        #await verify_active_user(payload)
         token_tech_id = payload.get("id") or payload.get("_id") or payload.get("user_id")
         role = payload.get("role")
 

@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from uuid import uuid4
-from core.security import get_current_technician
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status, Depends
 from core.security import get_current_user, require_admin
@@ -31,6 +30,55 @@ router = APIRouter(
     prefix="/routes",
     tags=["Routes"],
 )
+
+
+# ==========================================
+# AYUDAS DE ACCESO
+# ==========================================
+
+async def get_route_or_404(route_id: str) -> dict:
+    """Valida el ID y devuelve la ruta, o responde 400 / 404."""
+    if not ObjectId.is_valid(route_id):
+        raise HTTPException(
+            status_code=400,
+            detail="ID de ruta inválido",
+        )
+
+    route = await routes_collection.find_one({"_id": ObjectId(route_id)})
+
+    if not route:
+        raise HTTPException(
+            status_code=404,
+            detail="Ruta no encontrada",
+        )
+
+    return route
+
+
+def ensure_route_access(
+    current_user: dict,
+    route: dict,
+    detail: str = "No tienes acceso a esta ruta.",
+) -> None:
+    """Deja pasar al admin o al técnico al que está asignada la ruta.
+
+    Cualquier otro caso (otro técnico, rol desconocido, token sin id) -> 403.
+    """
+    role = current_user.get("role")
+
+    if role == "admin":
+        return
+
+    technician_id = current_user.get("id")
+
+    if (
+        role == "technician"
+        and technician_id
+        and route.get("technician_id") == technician_id
+    ):
+        return
+
+    raise HTTPException(status_code=403, detail=detail)
 
 
 # CREAR UNA RUTA
@@ -201,37 +249,18 @@ async def create_route(route: RouteCreate):
 # CONSULTAR UNA RUTA
 # ==========================================
 
-@router.get("/{route_id}", response_model=RouteDetailResponse, dependencies=[Depends(get_current_user)])
-async def get_route(route_id: str):
-
-    # ==========================================
-    # VALIDAR ID DE RUTA
-    # ==========================================
-
-    if not ObjectId.is_valid(route_id):
-        raise HTTPException(
-            status_code=400,
-            detail="ID de ruta inválido",
-        )
+@router.get("/{route_id}", response_model=RouteDetailResponse)
+async def get_route(
+    route_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    route = await get_route_or_404(route_id)
+    ensure_route_access(current_user, route)
+    return await build_route_response(route)
 
 
-    # ==========================================
-    # BUSCAR RUTA
-    # ==========================================
-
-    route = await routes_collection.find_one(
-        {
-            "_id": ObjectId(route_id)
-        }
-    )
-
-
-    if not route:
-        raise HTTPException(
-            status_code=404,
-            detail="Ruta no encontrada",
-        )
-
+async def build_route_response(route: dict) -> RouteDetailResponse:
+    """Arma el detalle de la ruta con los datos del técnico y de cada cliente."""
 
     # ==========================================
     # BUSCAR TÉCNICO
@@ -363,12 +392,25 @@ async def get_route(route_id: str):
         services=services,
     )
 
-@router.get("/", response_model=list[RouteResponse], dependencies=[Depends(get_current_user)])
-async def get_routes():
+@router.get("/", response_model=list[RouteResponse])
+async def get_routes(current_user: dict = Depends(get_current_user)):
     routes = []
-    # Filtramos en MongoDB donde el technician_id sea el del técnico logueado
 
-    async for route in routes_collection.find().sort("route_date", -1):
+    # El admin ve todas; el técnico solo las rutas que tiene asignadas.
+    query: dict = {}
+
+    if current_user.get("role") != "admin":
+        technician_id = current_user.get("id")
+
+        if current_user.get("role") != "technician" or not technician_id:
+            raise HTTPException(
+                status_code=403,
+                detail="No tienes acceso a las rutas.",
+            )
+
+        query = {"technician_id": technician_id}
+
+    async for route in routes_collection.find(query).sort("route_date", -1):
         routes.append(
             RouteResponse(
                 id=str(route["_id"]),
@@ -533,24 +575,31 @@ async def update_route(
 # ACTUALIZAR ESTADO DE UNA RUTA
 # ==========================================
 
-@router.patch("/{route_id}/status", response_model=RouteResponse, dependencies=[Depends(get_current_user)])
-async def update_route_status(route_id: str, data: RouteStatusUpdate):
+@router.patch("/{route_id}/status", response_model=RouteResponse)
+async def update_route_status(
+    route_id: str,
+    data: RouteStatusUpdate,
+    current_user: dict = Depends(get_current_user),
+):
     """Actualiza el estado de una ruta y aplica las reglas de transición."""
-    if not ObjectId.is_valid(route_id):
+    route = await get_route_or_404(route_id)
+    ensure_route_access(
+        current_user,
+        route,
+        detail="No puedes modificar la ruta de otro técnico.",
+    )
+
+    # Solo la oficina (admin) puede cancelar una ruta.
+    if (
+        current_user.get("role") != "admin"
+        and data.status == RouteStatus.CANCELED
+    ):
         raise HTTPException(
-            status_code=400,
-            detail="ID de ruta inválido",
+            status_code=403,
+            detail="Solo la oficina puede cancelar una ruta.",
         )
 
-    route_object_id = ObjectId(route_id)
-    route = await routes_collection.find_one({"_id": route_object_id})
-
-    if not route:
-        raise HTTPException(
-            status_code=404,
-            detail="Ruta no encontrada",
-        )
-
+    route_object_id = route["_id"]
     current_status = route["status"]
     new_status = data.status.value
 
@@ -1016,21 +1065,15 @@ async def add_route_service(
 async def start_service(
     route_id: str,
     service_id: str,
+    current_user: dict = Depends(get_current_user),
 ):
-    if not ObjectId.is_valid(route_id):
-        raise HTTPException(
-            status_code=400,
-            detail="ID de ruta inválido",
-        )
-
-    route_object_id = ObjectId(route_id)
-    route = await routes_collection.find_one({"_id": route_object_id})
-
-    if not route:
-        raise HTTPException(
-            status_code=404,
-            detail="Ruta no encontrada",
-        )
+    route = await get_route_or_404(route_id)
+    ensure_route_access(
+        current_user,
+        route,
+        detail="Esta ruta pertenece a otro técnico.",
+    )
+    route_object_id = route["_id"]
 
     if route.get("status") not in {
         RouteStatus.ASSIGNED.value,
@@ -1106,22 +1149,17 @@ async def start_service(
 async def complete_service(
     route_id: str,
     service_id: str,
-    data: CompleteServiceRequest,
+    data: CompleteServiceRequest | None = None,
+    current_user: dict = Depends(get_current_user),
 ):
-    if not ObjectId.is_valid(route_id):
-        raise HTTPException(
-            status_code=400,
-            detail="ID de ruta inválido",
-        )
-
-    route_object_id = ObjectId(route_id)
-    route = await routes_collection.find_one({"_id": route_object_id})
-
-    if not route:
-        raise HTTPException(
-            status_code=404,
-            detail="Ruta no encontrada",
-        )
+    route = await get_route_or_404(route_id)
+    ensure_route_access(
+        current_user,
+        route,
+        detail="Esta ruta pertenece a otro técnico.",
+    )
+    route_object_id = route["_id"]
+    notes = data.notes if data else None
 
     if route.get("status") != RouteStatus.IN_PROGRESS.value:
         raise HTTPException(
@@ -1155,7 +1193,7 @@ async def complete_service(
             "$set": {
                 "services.$.status": ServiceStatus.COMPLETED.value,
                 "services.$.completed_at": now,
-                "services.$.notes": data.notes,
+                "services.$.notes": notes,
                 "updated_at": now,
             }
         },

@@ -6,24 +6,44 @@ import bcrypt
 from bson import ObjectId
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from core.database import technicians_collection
 
 load_dotenv()
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 security_scheme = HTTPBearer()
 
-# Variables de configuración JWT
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY or SECRET_KEY == "dev-secret-key-change-in-prod":
+    raise RuntimeError(
+        "CRÍTICO: La variable de entorno SECRET_KEY es obligatoria y no puede usar un valor por defecto."
+    )
+
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080"))
 
 
+def validate_password_strength(password: str) -> bytes:
+    """Valida longitud mínima (8 caracteres) y máxima (72 bytes por límite de bcrypt)."""
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña debe tener al menos 8 caracteres.",
+        )
+    pwd_bytes = password.encode("utf-8")
+    if len(pwd_bytes) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña no puede exceder los 72 bytes.",
+        )
+    return pwd_bytes
+
+
 def hash_password(password: str) -> str:
+    pwd_bytes = validate_password_strength(password)
     salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+    return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
 
 
 def get_password_hash(password: str) -> str:
@@ -31,10 +51,10 @@ def get_password_hash(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
-        hashed_password.encode("utf-8"),
-    )
+    pwd_bytes = plain_password.encode("utf-8")
+    if len(pwd_bytes) > 72:
+        return False
+    return bcrypt.checkpw(pwd_bytes, hashed_password.encode("utf-8"))
 
 
 def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
@@ -47,7 +67,6 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
 
 
 def decode_access_token(token: str) -> dict[str, Any]:
-    """Decodifica y valida el JWT (reutilizable en HTTP y WebSockets)."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if not payload.get("sub"):
@@ -63,17 +82,34 @@ def decode_access_token(token: str) -> dict[str, Any]:
         )
 
 
+async def verify_active_user(payload: dict[str, Any]) -> dict[str, Any]:
+    """Si el token es de un técnico, verifica en BD que exista y siga activo."""
+    if payload.get("role") == "technician":
+        tech_id = payload.get("id")
+        if not tech_id or not ObjectId.is_valid(tech_id):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token de técnico inválido.",
+            )
+        tech = await technicians_collection.find_one({"_id": ObjectId(tech_id)})
+        if not tech or not tech.get("active", True):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Cuenta de técnico inactiva o eliminada.",
+            )
+    return payload
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
 ) -> dict[str, Any]:
-    """Permite el acceso a cualquier usuario autenticado (admin o technician)."""
-    return decode_access_token(credentials.credentials)
+    payload = decode_access_token(credentials.credentials)
+    return await verify_active_user(payload)
 
 
 async def require_admin(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Restringe el endpoint exclusivamente al rol admin."""
     if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -85,31 +121,9 @@ async def require_admin(
 async def require_technician(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Restringe el endpoint exclusivamente al rol technician."""
     if current_user.get("role") != "technician":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acceso exclusivo para técnicos.",
         )
     return current_user
-
-
-async def get_current_technician(token: str = Depends(oauth2_scheme)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="No se pudieron validar las credenciales",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        technician_id: str | None = payload.get("id")
-        if technician_id is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-
-    technician = await technicians_collection.find_one({"_id": ObjectId(technician_id)})
-    if technician is None or not technician.get("active", True):
-        raise credentials_exception
-
-    return technician

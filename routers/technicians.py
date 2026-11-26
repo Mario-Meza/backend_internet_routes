@@ -1,8 +1,6 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status, Depends
-from core.security import get_current_technician
+from fastapi import Depends
 from core.security import get_current_user, require_admin
-import os
 import cloudinary.uploader
 from fastapi import (
     APIRouter,
@@ -52,8 +50,9 @@ def technician_to_response(technician: dict) -> TechnicianResponse:
     return TechnicianResponse(
         id=str(technician["_id"]),
         name=technician["name"],
-        email=technician.get("email", "sin-correo@pendiente.com"), # Agregamos el correo aquí
+        email=technician["email"], # Agregamos el correo aquí
         phone=technician.get("phone"),
+        specialties=technician.get("specialties", ["General"]),
         active=technician.get("active", True),
         photo_url=technician.get("photo_url"),
     )
@@ -67,12 +66,7 @@ def technician_to_response(technician: dict) -> TechnicianResponse:
 # CREAR TÉCNICO
 # ==========================================
 
-@router.post(
-    "/",
-    response_model=TechnicianResponse,
-    status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_admin)]
-)
+@router.post("/", response_model=TechnicianResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_admin)])
 async def create_technician(technician: TechnicianCreate):
     # 1. (Opcional) Validar si el correo ya existe
     existing_user = await technicians_collection.find_one({"email": technician.email})
@@ -137,7 +131,11 @@ async def get_technicians():
 # ==========================================
 
 @router.get("/{technician_id}", response_model=TechnicianResponse)
-async def get_technician( technician_id: str):
+async def get_technician(technician_id: str, current_user: dict = Depends(get_current_user)):
+    # Un técnico solo puede consultar su propio expediente; el admin puede ver cualquiera
+    if current_user.get("role") != "admin" and current_user.get("id") != technician_id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver este perfil.")
+
     object_id = validate_object_id(technician_id)
 
 
@@ -162,7 +160,6 @@ async def get_technician( technician_id: str):
         active=technician.get("active", True),
         photo_url=technician.get("photo_url"),
 
-        # ---> AGREGA ESTA LÍNEA AQUÍ TAMBIÉN <---
         specialties=technician.get("specialties", ["General"])
     )
 
@@ -175,15 +172,10 @@ async def get_technician( technician_id: str):
 # ACTUALIZAR TÉCNICO
 # ==========================================
 
-@router.put(
-    "/{technician_id}",
-    response_model=TechnicianResponse,
-    dependencies=[Depends(require_admin)]
-)
-async def update_technician(
-    technician_id: str,
-    technician: TechnicianUpdate,
-):
+@router.put("/{technician_id}", response_model=TechnicianResponse, dependencies=[Depends(require_admin)])
+async def update_technician(technician_id: str, technician: TechnicianUpdate):
+
+
 
     object_id = validate_object_id(
         technician_id
@@ -220,6 +212,8 @@ async def update_technician(
         hashed_pw = get_password_hash(new_password) # Lo encriptamos
         update_data["hashed_password"] = hashed_pw # Lo guardamos como lo espera la BD
 
+
+
     await technicians_collection.update_one(
         {
             "_id": object_id
@@ -246,14 +240,8 @@ async def update_technician(
 # ACTIVAR / DESACTIVAR
 # ==========================================
 
-@router.patch(
-    "/{technician_id}/active",
-    response_model=TechnicianResponse,
-)
-async def update_technician_active(
-    technician_id: str,
-    data: TechnicianActiveUpdate,
-):
+@router.patch("/{technician_id}/active", response_model=TechnicianResponse, dependencies=[Depends(require_admin)])
+async def update_technician_active(technician_id: str, data: TechnicianActiveUpdate):
 
     object_id = validate_object_id(
         technician_id
@@ -301,6 +289,7 @@ async def update_technician_active(
 @router.post(
     "/{technician_id}/photo",
     response_model=TechnicianResponse,
+    dependencies=[Depends(require_admin)],
 )
 async def upload_technician_photo(
     technician_id: str,
@@ -398,13 +387,8 @@ async def upload_technician_photo(
 # ELIMINAR FOTOGRAFÍA DEL TÉCNICO
 # ==========================================
 
-@router.delete(
-    "/{technician_id}/photo",
-    response_model=TechnicianResponse,
-)
-async def delete_technician_photo(
-    technician_id: str,
-):
+@router.delete("/{technician_id}/photo", response_model=TechnicianResponse, dependencies=[Depends(require_admin)])
+async def delete_technician_photo(technician_id: str):
     object_id = validate_object_id(technician_id)
 
     technician = await technicians_collection.find_one(
@@ -462,10 +446,7 @@ async def delete_technician_photo(
 # ELIMINAR TÉCNICO
 # ==========================================
 
-@router.delete(
-    "/{technician_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.delete("/{technician_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_admin)])
 async def delete_technician(
     technician_id: str,
 ):

@@ -210,11 +210,9 @@ async def update_customer(
 @router.patch(
     "/{customer_id}/active",
     response_model=CustomerResponse,
+    dependencies=[Depends(require_admin)]
 )
-async def update_customer_active(
-    customer_id: str,
-    data: CustomerActiveUpdate,
-):
+async def update_customer_active(customer_id: str, data: CustomerActiveUpdate, payload: CustomerActiveUpdate):
 
     object_id = validate_object_id(
         customer_id
