@@ -17,8 +17,6 @@ from schemas.route import (
     RouteDetailResponse,
     RouteResponse,
     RouteServiceCreate,
-    RouteServiceDetailResponse,
-    RouteServiceResponse,
     RouteServiceUpdate,
     RouteStatus,
     RouteStatusUpdate,
@@ -30,7 +28,6 @@ router = APIRouter(
     prefix="/routes",
     tags=["Routes"],
 )
-
 
 # ==========================================
 # AYUDAS DE ACCESO
@@ -380,7 +377,8 @@ async def build_route_response(route: dict) -> RouteDetailResponse:
 
         technician_id=technician_id,
 
-        technician={
+        technician=
+        {
             "id": str(technician["_id"]),
             "name": technician["name"],
             "phone": technician.get("phone"),

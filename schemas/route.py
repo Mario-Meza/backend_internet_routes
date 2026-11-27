@@ -1,60 +1,9 @@
+# schemas/route.py
 from datetime import date, datetime
 from enum import Enum
-
-from pydantic import BaseModel, Field
 from typing import Optional
-from enum import Enum
+from pydantic import BaseModel, Field
 
-# Definimos los estados permitidos
-class RouteStatus(str, Enum):
-    pending = "pendiente"
-    in_progress = "en_progreso"
-    completed = "completada"
-
-class RouteBase(BaseModel):
-    customer_id: str
-    technician_id: str
-    scheduled_date: datetime
-    status: RouteStatus = RouteStatus.pending
-    observations: Optional[str] = None
-
-class RouteCreate(RouteBase):
-    pass
-
-class RouteUpdate(BaseModel):
-    status: Optional[RouteStatus] = None
-    observations: Optional[str] = None
-
-class RouteResponse(RouteBase):
-    id: str
-
-    class Config:
-        from_attributes = True
-
-# ==========================================
-# TIPOS DE SERVICIO
-# ==========================================
-
-class ServiceType(str, Enum):
-    SERVICE = "S"
-    RECONNECTION = "R"
-    ALIGN = "A"
-    CHANGE_TO_FIBER = "CF"
-
-# ==========================================
-# ESTADOS DEL SERVICIO
-# ==========================================
-
-class ServiceStatus(str, Enum):
-    PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    COMPLETED = "completed"
-    NOT_COMPLETED = "no_completed"
-    CANCELED = "cancelled"
-
-# ==========================================
-# ESTADOS DE LA RUTA
-# ==========================================
 
 class RouteStatus(str, Enum):
     ASSIGNED = "assigned"
@@ -63,145 +12,96 @@ class RouteStatus(str, Enum):
     CANCELED = "canceled"
 
 
-# ==========================================
-# SERVICIO AL CREAR
-# ==========================================
+class ServiceStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    NOT_COMPLETED = "not_completed"
+    CANCELED = "canceled"
+
+
+class ServiceType(str, Enum):
+    SERVICE = "S"
+    RECONNECTION = "R"
+    ALIGN = "A"
+    CHANGE_TO_FIBER = "CF"
+
+
+class RouteCustomerSummary(BaseModel):
+    id: str
+    name: str
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    reference: Optional[str] = None
+
+
+class RouteTechnicianSummary(BaseModel):
+    id: str
+    name: str
+    phone: Optional[str] = None
+    active: bool = True
+
 
 class RouteServiceCreate(BaseModel):
     customer_id: str
     service_type: ServiceType
 
 
-# ==========================================
-# SERVICIO AL ACTUALIZAR
-# ==========================================
-
 class RouteServiceUpdate(BaseModel):
-    customer_id: str | None = None
-    service_type: ServiceType | None = None
+    customer_id: Optional[str] = None
+    service_type: Optional[ServiceType] = None
 
 
-# ==========================================
-# SERVICIO EN RESPUESTA
-# ==========================================
+class CompleteServiceRequest(BaseModel):
+    notes: Optional[str] = Field(default=None, max_length=1000)
+
 
 class RouteServiceResponse(BaseModel):
     service_id: str
     customer_id: str
-    service_type: ServiceType
+    service_type: str
     status: ServiceStatus
-
-    notes: str | None = None
-
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-
-
-# ==========================================
-# COMPLETAR SERVICIO
-# ==========================================
-
-class CompleteServiceRequest(BaseModel):
-    notes: str | None = Field(
-        default=None,
-        max_length=500,
-    )
+    notes: Optional[str] = None
+    evidence_url: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 
-# ==========================================
-# CREAR RUTA
-# ==========================================
+class RouteServiceDetailResponse(RouteServiceResponse):
+    customer: Optional[RouteCustomerSummary] = None
+
 
 class RouteCreate(BaseModel):
     route_date: date
     technician_id: str
+    services: list[RouteServiceCreate] = Field(default_factory=list)
+    notes: Optional[str] = None
 
-    services: list[RouteServiceCreate] = Field(
-        min_length=1,
-    )
-
-
-# ==========================================
-# ACTUALIZAR RUTA
-# ==========================================
 
 class RouteUpdate(BaseModel):
-    route_date: date | None = None
-    technician_id: str | None = None
+    route_date: Optional[date] = None
+    technician_id: Optional[str] = None
+    notes: Optional[str] = None
 
-
-# ==========================================
-# ACTUALIZAR ESTADO DE RUTA
-# ==========================================
 
 class RouteStatusUpdate(BaseModel):
     status: RouteStatus
 
-
-# ==========================================
-# CLIENTE RESUMIDO
-# ==========================================
-
-class CustomerSummary(BaseModel):
-    id: str
-    name: str
-    phone: str
-    location: str
-    reference: str | None = None
-
-
-# ==========================================
-# TÉCNICO RESUMIDO
-# ==========================================
-
-class TechnicianSummary(BaseModel):
-    id: str
-    name: str
-    phone: str | None = None
-    active: bool
-
-
-# ==========================================
-# SERVICIO DETALLE
-# ==========================================
-
-class RouteServiceDetailResponse(
-    RouteServiceResponse
-):
-    customer: CustomerSummary | None = None
-
-
-# ==========================================
-# RESPUESTA NORMAL DE RUTA
-# ==========================================
 
 class RouteResponse(BaseModel):
     id: str
     route_date: date
     technician_id: str
     status: RouteStatus
-    services: list[RouteServiceResponse]
+    notes: Optional[str] = None
+    services: list[RouteServiceResponse] = Field(default_factory=list)
 
-
-# ==========================================
-# RESPUESTA DETALLE
-# ==========================================
 
 class RouteDetailResponse(BaseModel):
     id: str
     route_date: date
     technician_id: str
-    technician: TechnicianSummary
+    technician: RouteTechnicianSummary
     status: RouteStatus
-    services: list[RouteServiceDetailResponse]
-
-
-# ==========================================
-# ESPECIALIDADES
-# ==========================================
-class SpecialityTechnician(str, Enum):
-    FIBRA_OPTICA = "Fibra optica"
-    ANTENAS = "Antenas Wireless"
-    CONSTRUCCION = "Construcción de fibra optica"
-    FUSIONADOR_GENERAL = "Fusionador General de Fibra Optica"
-    OTRA = "Otra"
+    notes: Optional[str] = None
+    services: list[RouteServiceDetailResponse] = Field(default_factory=list)
