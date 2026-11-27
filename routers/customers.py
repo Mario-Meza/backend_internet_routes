@@ -1,5 +1,5 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from core.database import customers_collection, routes_collection
 from core.security import get_current_user, require_admin
@@ -9,7 +9,6 @@ from schemas.customer import (
     CustomerResponse,
     CustomerUpdate,
 )
-
 
 router = APIRouter(
     prefix="/customers",

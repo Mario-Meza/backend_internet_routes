@@ -1,16 +1,16 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
+
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status, Depends
-from core.security import get_current_user, require_admin
-from core.websockets import manager
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from core.database import (
+    customers_collection,
     routes_collection,
     technicians_collection,
-    customers_collection,
 )
-
+from core.security import get_current_user, require_admin
+from core.websockets import manager
 from schemas.route import (
     CompleteServiceRequest,
     RouteCreate,
@@ -203,7 +203,7 @@ async def create_route(route: RouteCreate):
     # 4. CONSTRUIR RUTA
     # ==========================================
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     route_data = {
         "route_date": route.route_date.isoformat(),
@@ -531,7 +531,7 @@ async def update_route(
         )
 
     update_data["updated_at"] = (
-        datetime.now(timezone.utc)
+        datetime.now(UTC)
     )
 
     # ==========================================
@@ -646,7 +646,7 @@ async def update_route_status(
             detail="Una ruta completada o cancelada no puede cambiar de estado.",
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # ASSIGNED -> IN_PROGRESS
     if (
@@ -984,7 +984,7 @@ async def add_route_service(
             "$set":
                 {
                     "updated_at":
-                        datetime.now(timezone.utc),
+                        datetime.now(UTC),
                 },
         },
     )
@@ -1092,7 +1092,7 @@ async def start_service(
             detail="Servicio no encontrado",
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await routes_collection.update_one(
         {
             "_id": route_object_id,
@@ -1175,7 +1175,7 @@ async def complete_service(
             detail="Servicio no encontrado",
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await routes_collection.update_one(
         {
             "_id": route_object_id,
@@ -1223,7 +1223,7 @@ async def complete_service(
             {
                 "$set": {
                     "status": RouteStatus.COMPLETED.value,
-                    "updated_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(UTC),
                 }
             },
         )
@@ -1382,7 +1382,7 @@ async def update_route_service(
 
     update_fields[
         "updated_at"
-    ] = datetime.now(timezone.utc)
+    ] = datetime.now(UTC)
 
     # ==========================================
     # ACTUALIZAR SERVICIO
@@ -1531,7 +1531,7 @@ async def delete_route_service(route_id: str, service_id: str):
             },
             "$set": {
                 "updated_at": datetime.now(
-                    timezone.utc
+                    UTC
                 ),
             },
         },

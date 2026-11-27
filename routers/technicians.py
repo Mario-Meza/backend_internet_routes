@@ -1,30 +1,27 @@
-from bson import ObjectId
-from fastapi import Depends
-from core.security import get_current_user, require_admin
 import cloudinary.uploader
+from bson import ObjectId
 from fastapi import (
     APIRouter,
-    HTTPException,
-    status,
-    UploadFile,
+    Depends,
     File,
+    HTTPException,
+    UploadFile,
+    status,
 )
 from starlette.concurrency import run_in_threadpool
+
 from core.cloudinary_config import cloudinary
-
-
 from core.database import (
     routes_collection,
     technicians_collection,
 )
-
+from core.security import get_current_user, get_password_hash, require_admin
 from schemas.technician import (
     TechnicianActiveUpdate,
     TechnicianCreate,
     TechnicianResponse,
     TechnicianUpdate,
 )
-from core.security import get_password_hash
 
 router = APIRouter(
     prefix="/technicians",

@@ -1,4 +1,5 @@
 from pymongo import AsyncMongoClient
+
 from core.config import settings
 
 # En aplicaciones como FastAPI, es preferible manejar el cliente dentro del ciclo de vida (lifespan)

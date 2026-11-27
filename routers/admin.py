@@ -1,12 +1,11 @@
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, EmailStr
-from typing import Optional
-from core.config import ADMIN_EMAIL, ADMIN_PASSWORD
-from core.security import require_admin
+
 # Ajusta estas importaciones a las rutas de tu proyecto:
-from core.config import settings
-from core.security import verify_password, get_password_hash
+from core.config import ADMIN_EMAIL, ADMIN_PASSWORD
 from core.database import database
+from core.security import get_password_hash, require_admin, verify_password
 
 router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(require_admin)])
 
@@ -16,7 +15,7 @@ class AdminUpdate(BaseModel):
     name: str
     email: EmailStr
     current_password: str
-    new_password: Optional[str] = None
+    new_password: str | None = None
 
 
 # --- ENDPOINT: OBTENER PERFIL ---

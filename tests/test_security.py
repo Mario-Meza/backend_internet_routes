@@ -1,10 +1,7 @@
 # tests/test_security.py
-import os
-
-os.environ.setdefault("SECRET_KEY", "test-secret-key-ci-only-32-bytes-long")
-
 import pytest
 from fastapi import HTTPException
+
 from core.security import (
     create_access_token,
     decode_access_token,

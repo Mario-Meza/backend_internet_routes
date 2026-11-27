@@ -1,14 +1,15 @@
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+
+from pydantic import BaseModel, ConfigDict, EmailStr
+
 
 # Base con los datos comunes
 class TechnicianBase(BaseModel):
     name: str
     email: EmailStr
-    phone: Optional[str] = None
+    phone: str | None = None
     active: bool = True
-    specialties: List[str] = ["General"]
-    photo_url: Optional[str] = None
+    specialties: list[str] = ["General"]
+    photo_url: str | None = None
 
 
 # Esquema para registrar un técnico nuevo (recibe password en texto plano)
@@ -17,11 +18,11 @@ class TechnicianCreate(TechnicianBase):
 
 # Esquema para actualizar datos generales
 class TechnicianUpdate(BaseModel):
-    name: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[EmailStr] = None
-    password: Optional[str] = None
-    specialties: List[str] = ["General"]
+    name: str | None = None
+    phone: str | None = None
+    email: EmailStr | None = None
+    password: str | None = None
+    specialties: list[str] = ["General"]
 
 # Esquema para activar/desactivar
 class TechnicianActiveUpdate(BaseModel):
@@ -29,12 +30,11 @@ class TechnicianActiveUpdate(BaseModel):
 
 # Esquema interno para interactuar con la base de datos (tiene el hash)
 class TechnicianDB(TechnicianBase):
-    id: Optional[str] = None
+    id: str | None = None
     hashed_password: str
 
 # Esquema que se devuelve al frontend (¡nunca incluye contraseñas!)
 class TechnicianResponse(TechnicianBase):
     id: str
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True

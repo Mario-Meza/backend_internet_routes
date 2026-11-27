@@ -1,5 +1,6 @@
 # core/websockets.py
 import logging
+
 from fastapi import WebSocket
 
 logger = logging.getLogger("rutas_digitales.websockets")
