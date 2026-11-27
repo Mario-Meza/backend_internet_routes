@@ -1,0 +1,31 @@
+# .github/workflows/ci.yml
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint with Ruff
+        run: uv run ruff check .
+
+      - name: Run pytest
+        run: uv run pytest -v
+        env:
+          SECRET_KEY: ci-dummy-secret-key-at-least-32-bytes
+          MONGO_URI: mongodb://localhost:27017
